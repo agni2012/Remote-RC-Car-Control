@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mars Rover Mission Control</title>
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #00ff00;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        #video-feed {
+            width: 80%;
+            max-width: 800px;
+            height: 450px;
+            border: 2px solid #333;
+            background-color: #000;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(3, 80px);
+            gap: 10px;
+            text-align: center;
+        }
+
+        .btn {
+            width: 80px;
+            height: 80px;
+            background: #333;
+            border: 2px solid #00ff00;
+            color: #00ff00;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .btn:active, .active {
+            background: #00ff00;
+            color: #000;
+        }
+
+        #status {
+            margin-top: 20px;
+            font-size: 0.8em;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>ROVER MISSION CONTROL</h1>
+
+    <div id="video-feed">
+        <p>[ LIVE VIDEO FEED FROM GOOGLE MEET / VDO.NINJA ]</p>
+    </div>
+
+    <div class="controls">
+        <div></div>
+        <div id="key-w" class="btn">W</div>
+        <div></div>
+        
+        <div id="key-a" class="btn">A</div>
+        <div id="key-s" class="btn">S</div>
+        <div id="key-d" class="btn">D</div>
+
+        <div id="key-r" class="btn" style="margin-top: 20px;">R</div>
+        <div></div>
+        <div id="key-g" class="btn" style="margin-top: 20px;">G</div>
+    </div>
+
+    <div id="status">Last Command: None</div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const SERVER_URL = "https://department-buf-pcs-display.trycloudflare.com";
+        
+        const statusEl = document.getElementById('status');
+        let activeKey = null;
+
+        async function sendCommand(char) {
+            statusEl.innerText = "Last Command: " + char;
+            try {
+                // Sending to your Flask endpoint /control/<cmd>
+                await fetch(`${SERVER_URL}/control/${char}`, { mode: 'no-cors' });
+            } catch (err) {
+                console.error("Failed to reach server:", err);
+            }
+        }
+
+        // Keyboard Event Listeners
+        window.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            if (['w', 'a', 's', 'd', 'r', 'g'].includes(key) && activeKey !== key) {
+                activeKey = key;
+                document.getElementById(`key-${key}`).classList.add('active');
+                sendCommand(key);
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            if (['w', 'a', 's', 'd', 'r', 'g'].includes(key)) {
+                activeKey = null;
+                document.getElementById(`key-${key}`).classList.remove('active');
+                sendCommand('x'); // Send stop command
+            }
+        });
+
+        // Touch/Mouse Support for Buttons
+        document.querySelectorAll('.btn').forEach(button => {
+            const cmd = button.innerText.toLowerCase();
+            button.onmousedown = () => sendCommand(cmd);
+            button.onmouseup = () => sendCommand('x');
+            
+            // Mobile support
+            button.ontouchstart = (e) => { e.preventDefault(); sendCommand(cmd); };
+            button.ontouchend = (e) => { e.preventDefault(); sendCommand('x'); };
+        });
+    </script>
+</body>
+</html>
