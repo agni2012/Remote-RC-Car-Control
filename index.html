@@ -3,113 +3,160 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mars Rover Mission Control</title>
+    <title>Car</title>
     <style>
         body {
-            background-color: #1a1a1a;
-            color: #00ff00;
+            background-color: #0d0d0d;
+            color: #00ff41; /* Classic Matrix/Retro Terminal Green */
             font-family: 'Courier New', Courier, monospace;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            height: 100vh;
+            padding: 20px;
             margin: 0;
-            overflow: hidden;
         }
 
-        #video-feed {
-            width: 80%;
-            max-width: 800px;
-            height: 450px;
-            border: 2px solid #333;
-            background-color: #000;
+        .config-bar {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #333;
             margin-bottom: 20px;
             display: flex;
-            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
             justify-content: center;
+        }
+
+        input {
+            background: #000;
+            border: 1px solid #00ff41;
+            color: #00ff41;
+            padding: 8px;
+            border-radius: 4px;
+        }
+
+        button.connect-btn {
+            background: #00ff41;
+            color: #000;
+            border: none;
+            padding: 8px 15px;
+            cursor: pointer;
+            font-weight: bold;
+            border-radius: 4px;
+        }
+
+        #video-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            aspect-ratio: 16 / 9;
+            background: #000;
+            border: 3px solid #333;
+            margin-bottom: 20px;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
         }
 
         .controls {
             display: grid;
-            grid-template-columns: repeat(3, 80px);
-            gap: 10px;
-            text-align: center;
+            grid-template-columns: repeat(3, 70px);
+            gap: 15px;
+            margin-top: 10px;
         }
 
         .btn {
-            width: 80px;
-            height: 80px;
-            background: #333;
-            border: 2px solid #00ff00;
-            color: #00ff00;
-            font-weight: bold;
+            width: 70px;
+            height: 70px;
+            border: 2px solid #00ff41;
             display: flex;
             align-items: center;
             justify-content: center;
+            font-size: 20px;
+            font-weight: bold;
             cursor: pointer;
             user-select: none;
+            border-radius: 10px;
         }
 
-        .btn:active, .active {
-            background: #00ff00;
-            color: #000;
-        }
-
-        #status {
+        .active { background: #00ff41 !important; color: #000 !important; }
+        
+        .status-box {
             margin-top: 20px;
-            font-size: 0.8em;
-            color: #888;
+            padding: 10px;
+            border: 1px dashed #00ff41;
+            width: 300px;
+            text-align: center;
         }
     </style>
 </head>
 <body>
 
-    <h1>ROVER MISSION CONTROL</h1>
+    <h1>controll for very remote controled car, I used AI for most of UI</h1>
 
-    <div id="video-feed">
-        <p>[ LIVE VIDEO FEED FROM GOOGLE MEET / VDO.NINJA ]</p>
+    <div class="config-bar">
+        <input type="text" id="vdoId" placeholder="Enter VDO.Ninja ID">
+        <input type="text" id="serverUrl" placeholder="Cloudflare URL" value="https://department-buf-pcs-display.trycloudflare.com">
+        <button class="connect-btn" onclick="updateConfig()">INITIALIZE SYSTEMS</button>
+    </div>
+
+    <div id="video-container">
+        <iframe id="roverFeed" src=""></iframe>
     </div>
 
     <div class="controls">
+        <div></div><div id="key-w" class="btn">W</div><div></div>
+        <div id="key-a" class="btn">A</div><div id="key-s" class="btn">S</div><div id="key-d" class="btn">D</div>
+        <div id="key-r" class="btn" style="margin-top:20px; color: #ff4141; border-color: #ff4141;">R</div>
         <div></div>
-        <div id="key-w" class="btn">W</div>
-        <div></div>
-        
-        <div id="key-a" class="btn">A</div>
-        <div id="key-s" class="btn">S</div>
-        <div id="key-d" class="btn">D</div>
-
-        <div id="key-r" class="btn" style="margin-top: 20px;">R</div>
-        <div></div>
-        <div id="key-g" class="btn" style="margin-top: 20px;">G</div>
+        <div id="key-g" class="btn" style="margin-top:20px; color: #41ff41; border-color: #41ff41;">G</div>
     </div>
 
-    <div id="status">Last Command: None</div>
+    <div class="status-box">
+        SYSTEM STATUS: <span id="status">IDLE</span><br>
+        DATA LINK: <span id="link-status">OFFLINE</span>
+    </div>
 
     <script>
-        // --- CONFIGURATION ---
-        const SERVER_URL = "https://department-buf-pcs-display.trycloudflare.com";
-        
-        const statusEl = document.getElementById('status');
+        let currentServer = "";
         let activeKey = null;
 
-        async function sendCommand(char) {
-            statusEl.innerText = "Last Command: " + char;
-            try {
-                // Sending to your Flask endpoint /control/<cmd>
-                await fetch(`${SERVER_URL}/control/${char}`, { mode: 'no-cors' });
-            } catch (err) {
-                console.error("Failed to reach server:", err);
+        function updateConfig() {
+            const id = document.getElementById('vdoId').value;
+            currentServer = document.getElementById('serverUrl').value;
+            
+            if (id) {
+                // Set the iframe source to VDO.Ninja
+                // autoplay=1 starts the video, mute=1 is required by browsers to allow autoplay
+                document.getElementById('roverFeed').src = `https://vdo.ninja/?view=${id}&autoplay=1&mute=1`;
+                document.getElementById('link-status').innerText = "CONNECTED";
+                document.getElementById('link-status').style.color = "#00ff41";
             }
         }
 
-        // Keyboard Event Listeners
+        async function sendCommand(char) {
+            if (!currentServer) return;
+            document.getElementById('status').innerText = "EXECUTING: " + char.toUpperCase();
+            
+            try {
+                // We use 'no-cors' to prevent the browser from blocking the request if Flask isn't perfectly configured
+                await fetch(`${currentServer}/control/${char}`, { mode: 'no-cors' });
+            } catch (err) {
+                console.error("Transmission Error:", err);
+            }
+        }
+
+        // --- Event Listeners ---
         window.addEventListener('keydown', (e) => {
             const key = e.key.toLowerCase();
             if (['w', 'a', 's', 'd', 'r', 'g'].includes(key) && activeKey !== key) {
                 activeKey = key;
-                document.getElementById(`key-${key}`).classList.add('active');
+                const el = document.getElementById(`key-${key}`);
+                if(el) el.classList.add('active');
                 sendCommand(key);
             }
         });
@@ -118,20 +165,11 @@
             const key = e.key.toLowerCase();
             if (['w', 'a', 's', 'd', 'r', 'g'].includes(key)) {
                 activeKey = null;
-                document.getElementById(`key-${key}`).classList.remove('active');
-                sendCommand('x'); // Send stop command
+                const el = document.getElementById(`key-${key}`);
+                if(el) el.classList.remove('active');
+                sendCommand('x'); // STOP
+                document.getElementById('status').innerText = "IDLE";
             }
-        });
-
-        // Touch/Mouse Support for Buttons
-        document.querySelectorAll('.btn').forEach(button => {
-            const cmd = button.innerText.toLowerCase();
-            button.onmousedown = () => sendCommand(cmd);
-            button.onmouseup = () => sendCommand('x');
-            
-            // Mobile support
-            button.ontouchstart = (e) => { e.preventDefault(); sendCommand(cmd); };
-            button.ontouchend = (e) => { e.preventDefault(); sendCommand('x'); };
         });
     </script>
 </body>
