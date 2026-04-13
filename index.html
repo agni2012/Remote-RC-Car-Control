@@ -134,52 +134,63 @@
             const video = document.getElementById('video-container');
             video.style.transform = `rotate(${rotation}deg)`;
         }
+        let currentServer = "";
+        // Use a Set to track multiple keys at once
+        const activeKeys = new Set();
+        
         function updateConfig() {
             const id = document.getElementById('vdoId').value;
             currentServer = document.getElementById('serverUrl').value;
-            
             if (id) {
-                // Set the iframe source to VDO.Ninja
-                // autoplay=1 starts the video, mute=1 is required by browsers to allow autoplay
                 document.getElementById('roverFeed').src = `https://vdo.ninja/?view=${id}&autoplay=1&mute=1`;
                 document.getElementById('link-status').innerText = "CONNECTED";
                 document.getElementById('link-status').style.color = "#00ff41";
             }
         }
-
+        
         async function sendCommand(char) {
             if (!currentServer) return;
             document.getElementById('status').innerText = "EXECUTING: " + char.toUpperCase();
-            
             try {
-                // We use 'no-cors' to prevent the browser from blocking the request if Flask isn't perfectly configured
                 await fetch(`${currentServer}/control/${char}`, { mode: 'no-cors' });
             } catch (err) {
                 console.error("Transmission Error:", err);
             }
         }
-
+        
         // --- Event Listeners ---
         window.addEventListener('keydown', (e) => {
             const key = e.key.toLowerCase();
-            if (['w', 'a', 's', 'd', 'r', 'g'].includes(key) && activeKey !== key) {
-                activeKey = key;
+            const validKeys = ['w', 'a', 's', 'd', 'r', 'g'];
+            
+            if (validKeys.includes(key) && !activeKeys.has(key)) {
+                activeKeys.add(key);
                 const el = document.getElementById(`key-${key}`);
                 if(el) el.classList.add('active');
                 sendCommand(key);
             }
         });
-
+        
         window.addEventListener('keyup', (e) => {
             const key = e.key.toLowerCase();
-            if (['w', 'a', 's', 'd', 'r', 'g'].includes(key)) {
-                activeKey = null;
+            const validKeys = ['w', 'a', 's', 'd', 'r', 'g'];
+        
+            if (validKeys.includes(key)) {
+                activeKeys.delete(key);
                 const el = document.getElementById(`key-${key}`);
                 if(el) el.classList.remove('active');
-                sendCommand('x'); // STOP
-                document.getElementById('status').innerText = "IDLE";
+        
+                // Logic for specific axis stop commands
+                if (key === 'w' || key === 's') sendCommand('xws');
+                else if (key === 'a' || key === 'd') sendCommand('xad');
+                else if (key === 'r' || key === 'g') sendCommand('xrg');
+        
+                if (activeKeys.size === 0) {
+                    document.getElementById('status').innerText = "IDLE";
+                }
             }
         });
+
     </script>
 </body>
 </html>
