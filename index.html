@@ -127,14 +127,12 @@
 
     <script>
         let currentServer = "";
-        let activeKey = null;
         let rotation = 0;
         function rotateVideo() {
             rotation = (rotation + 90) % 360;
             const video = document.getElementById('video-container');
             video.style.transform = `rotate(${rotation}deg)`;
         }
-        let currentServer = "";
         // Use a Set to track multiple keys at once
         const activeKeys = new Set();
         
@@ -181,9 +179,9 @@
                 if(el) el.classList.remove('active');
         
                 // Logic for specific axis stop commands
-                if (key === 'w' || key === 's') sendCommand('xws');
-                else if (key === 'a' || key === 'd') sendCommand('xad');
-                else if (key === 'r' || key === 'g') sendCommand('xrg');
+                if (key === 'w' || key === 's') sendCommand('f');
+                else if (key === 'a' || key === 'd') sendCommand('h');
+                else if (key === 'r' || key === 'g') sendCommand('j');
         
                 if (activeKeys.size === 0) {
                     document.getElementById('status').innerText = "IDLE";
