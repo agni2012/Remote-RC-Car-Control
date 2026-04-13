@@ -92,6 +92,10 @@
             width: 300px;
             text-align: center;
         }
+        /* Rotate the container and ensure it stays centered */
+        .rotate-90 {
+            transform: rotate(90deg);
+        }
     </style>
 </head>
 <body>
@@ -102,6 +106,7 @@
         <input type="text" id="vdoId" placeholder="Enter VDO.Ninja ID">
         <input type="text" id="serverUrl" placeholder="Cloudflare URL" value="https://department-buf-pcs-display.trycloudflare.com">
         <button class="connect-btn" onclick="updateConfig()">start</button>
+        <button class="connect-btn" onclick="rotateVideo()" style="background: #555; color: #fff;">⟲</button>
     </div>
 
     <div id="video-container">
@@ -115,7 +120,6 @@
         <div></div>
         <div id="key-g" class="btn" style="margin-top:20px; color: #41ff41; border-color: #41ff41;">G</div>
     </div>
-
     <div class="status-box">
         SYSTEM STATUS: <span id="status">IDLE</span><br>
         DATA LINK: <span id="link-status">OFFLINE</span>
@@ -124,7 +128,12 @@
     <script>
         let currentServer = "";
         let activeKey = null;
-
+        let rotation = 0;
+        function rotateVideo() {
+            rotation = (rotation + 90) % 360;
+            const video = document.getElementById('video-container');
+            video.style.transform = `rotate(${rotation}deg)`;
+        }
         function updateConfig() {
             const id = document.getElementById('vdoId').value;
             currentServer = document.getElementById('serverUrl').value;
