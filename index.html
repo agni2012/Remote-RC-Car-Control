@@ -188,7 +188,37 @@
                 }
             }
         });
-
+        // --- Mobile Touch Support ---
+        const buttons = document.querySelectorAll('.btn');
+        
+        buttons.forEach(btn => {
+            // Extract the key character from the ID (e.g., 'key-w' becomes 'w')
+            const key = btn.id.replace('key-', '');
+        
+            btn.addEventListener('touchstart', (e) => {
+                e.preventDefault(); // Prevents zooming/scrolling while driving
+                if (!activeKeys.has(key)) {
+                    activeKeys.add(key);
+                    btn.classList.add('active');
+                    sendCommand(key);
+                }
+            });
+        
+            btn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                activeKeys.delete(key);
+                btn.classList.remove('active');
+        
+                // Reuse your axis stop logic
+                if (key === 'w' || key === 's') sendCommand('f');
+                else if (key === 'a' || key === 'd') sendCommand('h');
+                else if (key === 'r' || key === 'g') sendCommand('j');
+        
+                if (activeKeys.size === 0) {
+                    document.getElementById('status').innerText = "IDLE";
+                }
+            });
+        });
     </script>
 </body>
 </html>
