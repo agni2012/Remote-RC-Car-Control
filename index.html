@@ -7,7 +7,7 @@
     <style>
         body {
             background-color: #0d0d0d;
-            color: #00ff41; /* Classic Matrix/Retro Terminal Green */
+            color: #00ff41;
             font-family: 'Courier New', Courier, monospace;
             display: flex;
             flex-direction: column;
@@ -133,7 +133,6 @@ IF YOU WANT TO CHANGE THE SPEED OF THE CAR/TWEAK SMTN, JUST TELL ME ILL CHANGE C
             const video = document.getElementById('video-container');
             video.style.transform = `rotate(${rotation}deg)`;
         }
-        // Use a Set to track multiple keys at once
         const activeKeys = new Set();
         
         function updateConfig() {
@@ -156,7 +155,6 @@ IF YOU WANT TO CHANGE THE SPEED OF THE CAR/TWEAK SMTN, JUST TELL ME ILL CHANGE C
             }
         }
         
-        // --- Event Listeners ---
         window.addEventListener('keydown', (e) => {
             const key = e.key.toLowerCase();
             const validKeys = ['w', 'a', 's', 'd', 'r', 'g'];
@@ -188,15 +186,13 @@ IF YOU WANT TO CHANGE THE SPEED OF THE CAR/TWEAK SMTN, JUST TELL ME ILL CHANGE C
                 }
             }
         });
-        // --- Mobile Touch Support ---
         const buttons = document.querySelectorAll('.btn');
         
         buttons.forEach(btn => {
-            // Extract the key character from the ID (e.g., 'key-w' becomes 'w')
             const key = btn.id.replace('key-', '');
         
             btn.addEventListener('touchstart', (e) => {
-                e.preventDefault(); // Prevents zooming/scrolling while driving
+                e.preventDefault();
                 if (!activeKeys.has(key)) {
                     activeKeys.add(key);
                     btn.classList.add('active');
@@ -208,10 +204,9 @@ IF YOU WANT TO CHANGE THE SPEED OF THE CAR/TWEAK SMTN, JUST TELL ME ILL CHANGE C
                 e.preventDefault();
                 activeKeys.delete(key);
                 btn.classList.remove('active');
-        
-                // Reuse your axis stop logic
+                //For reverse:
                 if (key === 'w' || key === 's') sendCommand('f');
-                else if (key === 'a' || key === 'd') sendCommand('h');
+                else if (key === 'a' || key === 'd') sendCommand('h'); //IDK why i named it f h and j, but it works!
                 else if (key === 'r' || key === 'g') sendCommand('j');
         
                 if (activeKeys.size === 0) {
