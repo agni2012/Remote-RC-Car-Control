@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#111827">
+<title>Rover Camera</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+	:root { color-scheme: dark; font-family: system-ui, sans-serif; background:#111827; color:#f9fafb; }
+	* { box-sizing:border-box; }
+	body { margin:0; padding:24px 14px 40px; }
+	main { width:min(760px,100%); margin:auto; }
+	h1 { margin:0 0 6px; font-size:1.65rem; }
+	p { color:#cbd5e1; line-height:1.45; }
+	.panel { background:#1f2937; border:1px solid #374151; border-radius:14px; padding:18px; margin:16px 0; }
+	button,input { font:inherit; border-radius:9px; padding:11px 13px; }
+	button { border:0; background:#2563eb; color:white; font-weight:650; cursor:pointer; }
+	button.secondary { background:#374151; }
+	button:disabled { opacity:.45; cursor:not-allowed; }
+	input { width:100%; border:1px solid #4b5563; background:#111827; color:white; margin:7px 0 12px; }
+	label { display:block; font-weight:600; margin-top:8px; }
+	.actions { display:flex; flex-wrap:wrap; gap:9px; margin-top:12px; }
+	.status { color:#93c5fd; overflow-wrap:anywhere; }
+	.hidden { display:none !important; }
+	video { display:block; width:100%; max-height:65vh; background:#030712; border-radius:10px; object-fit:contain; }
+	.room { font:700 1.2rem ui-monospace,monospace; letter-spacing:.04em; overflow-wrap:anywhere; }
+	.small { font-size:.9rem; color:#9ca3af; }
+</style>
+</head>
+<body>
+<main>
+	<h1>Rover Camera</h1>
+	<p>Use this page on both devices. The Android phone publishes its camera; the other device watches and can switch the phone between front and rear cameras.</p>
+
+	<section id="choose" class="panel">
+		<h2>Choose this device's role</h2>
+		<div class="actions">
+			<button id="roverMode">This is the rover phone</button>
+			<button id="viewerMode" class="secondary">This is the viewer</button>
+		</div>
+	</section>
+
+	<section id="roverPanel" class="panel hidden">
+		<h2>Rover phone</h2>
+		<p>Keep this page open on the Android phone. Allow camera access when asked.</p>
+		<div>Connection code:</div>
+		<div id="myId" class="room">Starting…</div>
+		<div class="actions">
+			<button id="copyId" class="secondary" disabled>Copy code</button>
+			<button id="stopRover" class="secondary">Stop rover</button>
+		</div>
+		<p id="roverStatus" class="status">Starting camera and connection…</p>
+		<video id="localVideo" autoplay muted playsinline></video>
+	</section>
+
+	<section id="viewerPanel" class="panel hidden">
+		<h2>Viewer</h2>
+		<label for="remoteId">Enter the code shown on the rover phone</label>
+		<input id="remoteId" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Rover connection code">
+		<button id="connect">Connect</button>
+		<div class="actions">
+			<button id="switchCamera" disabled>Switch rover camera</button>
+			<button id="disconnect" class="secondary" disabled>Disconnect</button>
+		</div>
+		<p id="viewerStatus" class="status">Not connected.</p>
+		<video id="remoteVideo" autoplay playsinline controls></video>
+	</section>
+
+	<section class="panel">
+		<h2>How to use it</h2>
+		<ol>
+			<li>Upload this HTML file to a GitHub repository and enable GitHub Pages.</li>
+			<li>Open the GitHub Pages HTTPS address on the Android phone and choose <b>rover phone</b>.</li>
+			<li>Allow camera access. Send the displayed connection code to the viewer.</li>
+			<li>Open the same HTTPS page on your computer, choose <b>viewer</b>, enter the code, and connect.</li>
+			<li>Use <b>Switch rover camera</b> to switch between rear and front cameras.</li>
+		</ol>
+		<p class="small">Both devices need internet access. The rover phone's browser tab must remain open and awake. This page uses PeerJS's public signaling service and WebRTC; some restrictive networks may prevent a direct connection.</p>
+	</section>
+</main>
+
+<script>
+(() => {
+	"use strict";
+
+	const $ = id => document.getElementById(id);
+	let peer = null;
+	let dataConnection = null;
+	let mediaCall = null;
+	let localStream = null;
+	let remotePeerId = null;
+	let currentFacing = "environment";
+	let roverActive = false;
+	let viewerActive = false;
+
+	function setStatus(id, message) {
+		$(id).textContent = message;
+	}
+	function showRole(role) {
+		$("choose").classList.add("hidden");
+		$("roverPanel").classList.toggle("hidden", role !== "rover");
+		$("viewerPanel").classList.toggle("hidden", role !== "viewer");
+	}
+	function makePeer() {
+		return new Peer(undefined, {
+			debug: 1
+		});
+	}
+	function stopStream(stream) {
+		if (stream) stream.getTracks().forEach(track => track.stop());
+	}
+
+	async function openCamera(facing) {
+		const stream = await navigator.mediaDevices.getUserMedia({
+			audio: false,
+			video: {
+				facingMode: { ideal: facing },
+				width: { ideal: 1280 },
+				height: { ideal: 720 },
+				frameRate: { ideal: 24, max: 30 }
+			}
+		});
+		return stream;
+	}
+
+	async function startRover() {
+		if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+			setStatus("roverStatus", "Camera access is unavailable. Open this page using HTTPS in a supported browser.");
+			return;
+		}
+		showRole("rover");
+		roverActive = true;
+		setStatus("roverStatus", "Requesting rear camera permission…");
+		try {
+			localStream = await openCamera("environment");
+			currentFacing = "environment";
+			$("localVideo").srcObject = localStream;
+		} catch (error) {
+			setStatus("roverStatus", "Could not start camera: " + error.message);
+			return;
+		}
+
+		peer = makePeer();
+		peer.on("open", id => {
+			$("myId").textContent = id;
+			$("copyId").disabled = false;
+			setStatus("roverStatus", "Camera ready. Waiting for viewer…");
+		});
+		peer.on("connection", connection => {
+			if (dataConnection) dataConnection.close();
+			dataConnection = connection;
+			remotePeerId = connection.peer;
+			connection.on("open", () => {
+				setStatus("roverStatus", "Viewer connected. Camera is streaming.");
+				startVideoCall(remotePeerId);
+			});
+			connection.on("data", data => {
+				if (data && data.type === "switch-camera") switchCameraOnRover();
+			});
+			connection.on("close", () => {
+				if (dataConnection === connection) {
+					dataConnection = null;
+					remotePeerId = null;
+					if (mediaCall) { mediaCall.close(); mediaCall = null; }
+					setStatus("roverStatus", "Viewer disconnected. Waiting for viewer…");
+				}
+			});
+		});
+		peer.on("error", error => setStatus("roverStatus", "Connection error: " + error.message));
+		peer.on("disconnected", () => setStatus("roverStatus", "Signaling connection lost. Refresh this page to reconnect."));
+	}
+
+	function startVideoCall(viewerId) {
+		if (!peer || !localStream || !viewerId) return;
+		if (mediaCall) { mediaCall.close(); mediaCall = null; }
+		mediaCall = peer.call(viewerId, localStream);
+		mediaCall.on("error", error => setStatus("roverStatus", "Video error: " + error.message));
+	}
+
+	async function switchCameraOnRover() {
+		if (!roverActive || !remotePeerId || !dataConnection || dataConnection.open !== true) return;
+		const nextFacing = currentFacing === "environment" ? "user" : "environment";
+		setStatus("roverStatus", "Switching to " + (nextFacing === "environment" ? "rear" : "front") + " camera…");
+		try {
+			const newStream = await openCamera(nextFacing);
+			const oldStream = localStream;
+			localStream = newStream;
+			currentFacing = nextFacing;
+			$("localVideo").srcObject = newStream;
+			startVideoCall(remotePeerId);
+			stopStream(oldStream);
+			setStatus("roverStatus", "Streaming from " + (currentFacing === "environment" ? "rear" : "front") + " camera.");
+		} catch (error) {
+			setStatus("roverStatus", "Camera switch failed: " + error.message);
+		}
+	}
+
+	function startViewer() {
+		showRole("viewer");
+		viewerActive = true;
+		$("connect").onclick = connectViewer;
+		setStatus("viewerStatus", "Enter the rover's connection code.");
+	}
+	function connectViewer() {
+		const id = $("remoteId").value.trim();
+		if (!id) {
+			setStatus("viewerStatus", "Enter the connection code first.");
+			return;
+		}
+		$("connect").disabled = true;
+		setStatus("viewerStatus", "Connecting…");
+		peer = makePeer();
+		peer.on("open", () => {
+			dataConnection = peer.connect(id, { reliable: true });
+			dataConnection.on("open", () => {
+				$("switchCamera").disabled = false;
+				$("disconnect").disabled = false;
+				setStatus("viewerStatus", "Connected to rover. Waiting for video…");
+			});
+			dataConnection.on("close", () => {
+				$("switchCamera").disabled = true;
+				$("disconnect").disabled = true;
+				setStatus("viewerStatus", "Rover connection closed.");
+			});
+			dataConnection.on("error", error => setStatus("viewerStatus", "Control connection error: " + error.message));
+		});
+		peer.on("call", call => {
+			if (mediaCall) mediaCall.close();
+			mediaCall = call;
+			call.answer();
+			call.on("stream", stream => {
+				$("remoteVideo").srcObject = stream;
+				setStatus("viewerStatus", "Live video connected.");
+			});
+			call.on("close", () => {
+				if (mediaCall === call) {
+					mediaCall = null;
+					$("remoteVideo").srcObject = null;
+				}
+			});
+			call.on("error", error => setStatus("viewerStatus", "Video error: " + error.message));
+		});
+		peer.on("error", error => {
+			setStatus("viewerStatus", "Connection error: " + error.message);
+			$("connect").disabled = false;
+		});
+	}
+	function disconnectViewer() {
+		if (dataConnection) { dataConnection.close(); dataConnection = null; }
+		if (mediaCall) { mediaCall.close(); mediaCall = null; }
+		if (peer) { peer.destroy(); peer = null; }
+		$("remoteVideo").srcObject = null;
+		$("switchCamera").disabled = true;
+		$("disconnect").disabled = true;
+		$("connect").disabled = false;
+		setStatus("viewerStatus", "Disconnected.");
+	}
+
+	$("roverMode").addEventListener("click", startRover);
+	$("viewerMode").addEventListener("click", startViewer);
+	$("copyId").addEventListener("click", async () => {
+		try {
+			await navigator.clipboard.writeText($("myId").textContent);
+			setStatus("roverStatus", "Connection code copied. Send it to the viewer.");
+		} catch {
+			setStatus("roverStatus", "Select and copy the connection code manually.");
+		}
+	});
+	$("switchCamera").addEventListener("click", () => {
+		if (dataConnection && dataConnection.open) {
+			dataConnection.send({ type: "switch-camera" });
+			setStatus("viewerStatus", "Camera switch requested…");
+		}
+	});
+	$("disconnect").addEventListener("click", disconnectViewer);
+	$("stopRover").addEventListener("click", () => {
+		roverActive = false;
+		if (dataConnection) dataConnection.close();
+		if (mediaCall) mediaCall.close();
+		if (peer) peer.destroy();
+		stopStream(localStream);
+		localStream = null;
+		peer = null;
+		dataConnection = null;
+		mediaCall = null;
+		remotePeerId = null;
+		$("localVideo").srcObject = null;
+		$("copyId").disabled = true;
+		$("myId").textContent = "Stopped";
+		setStatus("roverStatus", "Rover stopped. Refresh the page to start again.");
+	});
+})();
+</script>
+</body>
+</html>
